@@ -396,11 +396,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-30 h-14 bg-background/85 backdrop-blur border-b border-border flex items-center gap-3 px-4 md:px-6">
-          <div className="md:hidden font-display font-semibold">Gharpayy</div>
+        <header className="sticky top-0 z-30 min-h-14 bg-background/85 backdrop-blur border-b border-border flex flex-wrap items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4 md:h-14 md:flex-nowrap md:px-6 md:py-0">
+          <div className="min-w-0 flex-1 truncate font-display font-semibold md:flex-none">Gharpayy</div>
           <button
             onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
-            className="md:hidden inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-card text-muted-foreground md:hidden"
             aria-label="Open command palette"
           >
             <Search className="h-3.5 w-3.5" />
@@ -415,9 +415,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Command className="h-2.5 w-2.5" />K
             </kbd>
           </button>
-          <div className="ml-auto flex items-center gap-2">
-            <LiveActivityDock />
-            <PipButton />
+          <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-2">
+            <div className="hidden sm:block"><LiveActivityDock /></div>
+            <div className="hidden sm:block"><PipButton /></div>
             <NotificationCenter role={role} />
             <ProfileMenu />
           </div>
@@ -441,7 +441,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 key={`${item.to}-${item.label}`}
                 to={item.to}
                 className={cn(
-                  "relative flex shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-md px-3 py-1.5 text-[10px] font-medium transition-colors min-w-[64px] min-h-[44px]",
+                  "relative flex shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[10px] font-medium transition-colors min-w-[64px] min-h-[44px] sm:px-3",
                   active ? "bg-accent/10 text-accent" : "text-muted-foreground hover:bg-muted/60",
                 )}
               >
