@@ -12,24 +12,21 @@ import { health, fmtMins } from "@/bookingflow/engine";
 import { useBookingFlow } from "@/bookingflow/store";
 import { useHydrated } from "@/bookingflow/useHydrated";
 import { CloseCommitButton } from "@/components/commitments/CloseCommitButton";
-
+import { appendWorkflowEvent } from "@/lib/workflow-events";
 type Tab = "CLOSING" | "BOOKED" | "MONEY_PENDING" | "CHECKIN";
-
 const TABS: { key: Tab; label: string }[] = [
   { key: "CLOSING", label: "Quote & decision" },
   { key: "BOOKED", label: "Booking & approval" },
   { key: "MONEY_PENDING", label: "Money pending" },
   { key: "CHECKIN", label: "Check-in" },
 ];
-
 const money = (v?: string) => (v ? `₹${Number(v).toLocaleString("en-IN")}` : "—");
-
 export function ClosingDesk({ onOpenLead }: { onOpenLead: (id: string) => void }) {
-  const { leads, answerStep, editFields, setNext } = useBookingFlow();
+  const { leads, answerStep, editFields, setNext, logActivity } = useBookingFlow();
   const hydrated = useHydrated();
   const [tab, setTab] = useState<Tab>("CLOSING");
   const [amount, setAmount] = useState<Record<string, string>>({});
-
+  const [workNote, setWorkNote] = useState<Record<string, string>>({});
   const rows = useMemo(() => {
     if (!hydrated) return [];
     return leads
@@ -37,47 +34,103 @@ export function ClosingDesk({ onOpenLead }: { onOpenLead: (id: string) => void }
       .filter(({ f, h }) => {
         if (h.closed) return false;
         switch (tab) {
-          case "CLOSING": return Boolean(f["tourFeedback"]) && !f["bookingAmount"];
-          case "BOOKED": return Boolean(f["bookingAmount"]) && f["approval"] !== "APPROVED";
-          case "MONEY_PENDING": return f["payment"] === "PENDING" || f["payment"] === "PARTIAL" || (Boolean(f["approval"]) && !f["payment"]);
-          case "CHECKIN": return Boolean(f["reserved"]) && f["checkinDay"] !== "CHECKED_IN";
-          default: return true;
+          case "CLOSING":
+            return Boolean(f["tourFeedback"]) && !f["bookingAmount"];
+          case "BOOKED":
+            return Boolean(f["bookingAmount"]) && f["approval"] !== "APPROVED";
+          case "MONEY_PENDING":
+            return (
+              f["payment"] === "PENDING" ||
+              f["payment"] === "PARTIAL" ||
+              (Boolean(f["approval"]) && !f["payment"])
+            );
+          case "CHECKIN":
+            return Boolean(f["reserved"]) && f["checkinDay"] !== "CHECKED_IN";
+          default:
+            return true;
         }
       })
       .sort((a, b) => b.h.signals.length - a.h.signals.length);
   }, [leads, tab, hydrated]);
-
   const pot = rows.reduce((sum, { f }) => sum + Number(f["rent"] ?? 0), 0);
-
   function collect(id: string, f: Record<string, string>) {
     const amt = amount[id];
-    if (!amt) { toast.error("Type the amount received first"); return; }
+    if (!amt) {
+      toast.error("Type the amount received first");
+      return;
+    }
     const payload = { payment: "RECEIVED", paymentAmount: amt, paymentMode: "Gharpayy UPI" };
     if (f["payment"]) editFields(id, payload, "payment updated on the closing desk");
     else answerStep(id, "PAYMENT", payload);
     setNext(id, "Prepare check-in", new Date(Date.now() + 24 * 3_600_000).toISOString());
+    void appendWorkflowEvent({
+      module: "closing-desk",
+      customerId: id,
+      leadId: id,
+      action: "payment_received",
+      payload,
+      actor: f["owner"] ?? "You",
+    }).catch((error: unknown) => console.error("[workflow-events]", error));
     toast.success(`₹${Number(amt).toLocaleString("en-IN")} recorded`);
   }
-
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-1.5">
         {TABS.map((t) => (
-          <Button key={t.key} size="sm" variant={tab === t.key ? "default" : "outline"} className="h-7 px-2 text-[11px]" onClick={() => setTab(t.key)}>{t.label}</Button>
+          <Button
+            key={t.key}
+            size="sm"
+            variant={tab === t.key ? "default" : "outline"}
+            className="h-7 px-2 text-[11px]"
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+          </Button>
         ))}
-        <Badge variant="outline" className="ml-auto text-[10px]"><IndianRupee className="mr-1 h-3 w-3" />{rows.length} customers · {money(String(pot || ""))} monthly rent on the table</Badge>
+        <Badge variant="outline" className="ml-auto text-[10px]">
+          <IndianRupee className="mr-1 h-3 w-3" />
+          {rows.length} customers · {money(String(pot || ""))} monthly rent on the table
+        </Badge>
+      </div>
+      <div className="rounded border bg-muted/30 px-2 py-1.5 text-[11px] text-muted-foreground">
+        Outcome: move every customer in this stage to the next committed closing result. Owner,
+        deadline, overdue state and captured work stay on each card.
       </div>
 
       {rows.map(({ l, h, f }) => (
         <Card key={l.id} className="p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className="text-sm font-medium underline-offset-2 hover:underline" onClick={() => onOpenLead(l.id)}>{l.name}</button>
+            <button
+              type="button"
+              className="text-sm font-medium underline-offset-2 hover:underline"
+              onClick={() => onOpenLead(l.id)}
+            >
+              {l.name}
+            </button>
             <span className="text-xs text-muted-foreground">{l.phone}</span>
-            <ContactActions compact phone={l.phone} name={l.name} />
-            <Badge variant="secondary" className="text-[10px]">{l.owner ?? "no owner"}</Badge>
-            <Badge variant="outline" className="text-[10px]">{h.stepNo}. {h.step?.title ?? "Checked in"}</Badge>
-            {h.sla === "LATE" && <Badge variant="destructive" className="text-[10px]">late {fmtMins(h.minutesLate)}</Badge>}
-            {h.toTower && <Badge variant="destructive" className="text-[10px]"><ShieldAlert className="mr-1 h-3 w-3" />tower</Badge>}
+            <ContactActions compact phone={l.phone} name={l.name} module="closing-desk" leadId={l.id} customerId={l.id} actor={l.owner ?? "You"} />
+            <Badge variant="secondary" className="text-[10px]">
+              {l.owner ?? "no owner"}
+            </Badge>
+            <Badge variant="outline" className="text-[10px]">
+              {h.stepNo}. {h.step?.title ?? "Checked in"}
+            </Badge>
+            <Badge variant={h.sla === "LATE" ? "destructive" : "outline"} className="text-[10px]">
+              {l.nextActionAt
+                ? `due ${new Date(l.nextActionAt).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`
+                : "deadline missing"}
+            </Badge>
+            {h.sla === "LATE" && (
+              <Badge variant="destructive" className="text-[10px]">
+                late {fmtMins(h.minutesLate)}
+              </Badge>
+            )}
+            {h.toTower && (
+              <Badge variant="destructive" className="text-[10px]">
+                <ShieldAlert className="mr-1 h-3 w-3" />
+                tower
+              </Badge>
+            )}
           </div>
           <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
             <span>Property: {f["property"] || "—"}</span>
@@ -89,18 +142,88 @@ export function ClosingDesk({ onOpenLead }: { onOpenLead: (id: string) => void }
             <span>Approval: {f["approval"] || "—"}</span>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <Input
+              className="h-7 min-w-48 flex-1 text-xs"
+              placeholder="Capture work completed / blocker"
+              value={workNote[l.id] ?? ""}
+              onChange={(e) => setWorkNote((s) => ({ ...s, [l.id]: e.target.value }))}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => {
+                const note = workNote[l.id]?.trim();
+                if (!note) {
+                  toast.error("Write what was done first");
+                  return;
+                }
+                logActivity(l.id, "Closing desk work captured", note);
+                void appendWorkflowEvent({
+                  module: "closing-desk",
+                  customerId: l.id,
+                  leadId: l.id,
+                  action: "work_captured",
+                  payload: { note },
+                  actor: l.owner ?? "You",
+                }).catch((error: unknown) => console.error("[workflow-events]", error));
+                setWorkNote((s) => ({ ...s, [l.id]: "" }));
+                toast.success("Work captured in the customer timeline");
+              }}
+            >
+              Save work
+            </Button>
             {tab === "MONEY_PENDING" && (
               <>
-                <Input className="h-7 w-28 text-xs" type="number" placeholder="Amount" value={amount[l.id] ?? ""} onChange={(e) => setAmount((s) => ({ ...s, [l.id]: e.target.value }))} />
-                <Button size="sm" className="h-7 px-2 text-[11px]" onClick={() => collect(l.id, f)}>Money received</Button>
+                <Input
+                  className="h-7 w-28 text-xs"
+                  type="number"
+                  placeholder="Amount"
+                  value={amount[l.id] ?? ""}
+                  onChange={(e) => setAmount((s) => ({ ...s, [l.id]: e.target.value }))}
+                />
+                <Button size="sm" className="h-7 px-2 text-[11px]" onClick={() => collect(l.id, f)}>
+                  Money received
+                </Button>
               </>
             )}
-            <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]"
-              onClick={() => { setNext(l.id, "Follow up on decision", new Date(Date.now() + 3_600_000).toISOString()); toast.success("Follow-up set for the next hour"); }}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => {
+                setNext(
+                  l.id,
+                  "Follow up on decision",
+                  new Date(Date.now() + 3_600_000).toISOString(),
+                );
+                void appendWorkflowEvent({
+                  module: "closing-desk",
+                  customerId: l.id,
+                  leadId: l.id,
+                  action: "follow_up_scheduled",
+                  payload: { nextAction: "Follow up on decision" },
+                }).catch((error: unknown) => console.error("[workflow-events]", error));
+                toast.success("Follow-up set for the next hour");
+              }}
+            >
               Chase in 1 hour
             </Button>
-            <CloseCommitButton leadId={l.id} leadName={l.name} leadPhone={l.phone} actorName={l.owner ?? "You"} size="sm" />
-            <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => onOpenLead(l.id)}>Open the customer</Button>
+            <CloseCommitButton
+              leadId={l.id}
+              leadName={l.name}
+              leadPhone={l.phone}
+              actorName={l.owner ?? "You"}
+              size="sm"
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => onOpenLead(l.id)}
+            >
+              Open the customer
+            </Button>
           </div>
         </Card>
       ))}

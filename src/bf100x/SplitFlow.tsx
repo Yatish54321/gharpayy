@@ -305,7 +305,7 @@ export function SplitFlow({ embedded = false, focus, panelOnly = false }: { embe
       {/* The only scrolling area */}
       <main className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {pane === "CLOSING" ? (
-          <ClosingDesk onOpenLead={(id) => { setLeadId(id); setPane("WORK"); }} />
+          <ClosingDesk onOpenLead={(id: string) => { setLeadId(id); setPane("WORK"); }} />
         ) : pane === "DRAFTS" ? (
           <div className="space-y-2">
             <p className="text-[10px] text-muted-foreground">Four drafts a day for {me} — D1, D2, D3, D4 · {BATCH_SIZE} customers each. Close a draft when all 30 have a next step and a deadline.</p>

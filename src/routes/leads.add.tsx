@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppShell } from "@/components/AppShell";
 import { DirectLeadForm } from "@/components/leads/DirectLeadForm";
 import { ReassignConsole } from "@/components/leads/ReassignConsole";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,8 +18,7 @@ export const Route = createFileRoute("/leads/add")({
 function AddLeadPage() {
   const totalLeads = useIdentityStore((s) => s.leads.length);
   return (
-    <AppShell>
-      <div className="space-y-4 max-w-3xl mx-auto">
+    <div className="space-y-4 max-w-3xl mx-auto">
         <header className="flex items-end justify-between flex-wrap gap-3">
           <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight">Add a lead</h1>
@@ -38,7 +36,6 @@ function AddLeadPage() {
           <TabsContent value="single"><DirectLeadForm /></TabsContent>
           <TabsContent value="requests"><ReassignConsole /></TabsContent>
         </Tabs>
-      </div>
-    </AppShell>
+    </div>
   );
 }

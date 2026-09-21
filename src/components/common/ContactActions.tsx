@@ -5,6 +5,7 @@ import { Copy, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { openExternalAction } from "@/lib/workflow-events";
 
 /** Digits only, with the India country code when it is missing. */
 export function waNumber(phone: string) {
@@ -46,12 +47,20 @@ export function ContactActions({
   message,
   className,
   compact,
+  module: workflowModule,
+  customerId,
+  leadId,
+  actor,
 }: {
   phone?: string | null;
   name?: string;
   message?: string;
   className?: string;
   compact?: boolean;
+  module?: string;
+  customerId?: string;
+  leadId?: string;
+  actor?: string;
 }) {
   if (!phone) return null;
   const chat = waLink(phone, message ?? (name ? `Hi ${name}, this is Gharpayy.` : undefined));
@@ -60,6 +69,9 @@ export function ContactActions({
     e.preventDefault();
   };
   const h = compact ? "h-6" : "h-7";
+  const eventContext = workflowModule
+    ? { module: workflowModule, customerId, leadId, actor }
+    : undefined;
 
   return (
     <span className={cn("inline-flex items-center gap-1", className)} onClick={(e) => e.stopPropagation()}>
@@ -86,7 +98,13 @@ export function ContactActions({
         className={cn(h, "gap-1 px-1.5 text-[11px]")}
         title={`Call ${phone}`}
       >
-        <a href={`tel:${phone.replace(/\s/g, "")}`} aria-label={`Call ${phone}`} onClick={(e) => e.stopPropagation()}>
+        <a href={`tel:${phone.replace(/\s/g, "")}`} aria-label={`Call ${phone}`} onClick={(e) => {
+          e.stopPropagation();
+          if (eventContext) {
+            e.preventDefault();
+            openExternalAction("call", phone, eventContext);
+          }
+        }}>
           <Phone className="h-3 w-3" />
           {!compact && <span className="inline">Call</span>}
         </a>
@@ -100,7 +118,16 @@ export function ContactActions({
           className={cn(h, "gap-1 border-emerald-500/40 px-1.5 text-[11px] text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400")}
           title={`Open the WhatsApp chat with ${name ?? phone}`}
         >
-          <a href={chat} target="_blank" rel="noreferrer" aria-label={`Open WhatsApp chat with ${name ?? phone}`} onClick={(e) => e.stopPropagation()}>
+          <a href={chat} target="_blank" rel="noreferrer" aria-label={`Open WhatsApp chat with ${name ?? phone}`} onClick={(e) => {
+            e.stopPropagation();
+            if (eventContext) {
+              e.preventDefault();
+              openExternalAction("whatsapp", waNumber(phone), {
+                ...eventContext,
+                payload: { target: phone, message: message ?? null },
+              });
+            }
+          }}>
             <WaMark />
             {!compact && <span className="inline">WhatsApp</span>}
           </a>

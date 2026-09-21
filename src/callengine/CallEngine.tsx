@@ -17,36 +17,48 @@ import { callMission } from "./mission";
 import { useCallEngine } from "./store";
 import { pushCallRecord } from "./sync";
 import {
-  ACTIVITIES, AGENDAS, DISLIKE_REASONS, MOVEMENT_LABEL, OUTCOMES, PRICE_REACTIONS, PROMISES, REACTIONS,
-  TOUR_REFUSALS, agendaDef, emptyCapture,
+  ACTIVITIES,
+  AGENDAS,
+  DISLIKE_REASONS,
+  MOVEMENT_LABEL,
+  OUTCOMES,
+  PRICE_REACTIONS,
+  PROMISES,
+  REACTIONS,
+  TOUR_REFUSALS,
+  agendaDef,
+  emptyCapture,
   type AgendaKey, type CallCapture, type CallOutputs, type CallRecord, type OutcomeKind,
 } from "./types";
-
 const Chip = ({ on, children, onClick }: { on?: boolean; children: React.ReactNode; onClick: () => void }) => (
   <button
     onClick={onClick}
     className={cn(
       "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
-      on ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted",
+      on
+        ? "border-primary bg-primary/10 text-primary"
+        : "border-border text-muted-foreground hover:bg-muted",
     )}
   >
     {children}
   </button>
 );
-
 const Title = ({ children }: { children: React.ReactNode }) => (
-  <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{children}</div>
+  <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+    {children}
+  </div>
 );
-
-interface Props {
-  lead: MovementState;
-  onLogged?: () => void;
-}
-
+const BUDGET_OPTIONS = [
+  ["<10K", 9000],
+  ["10–15K", 15000],
+  ["15–20K", 20000],
+  ["20–25K", 25000],
+  ["25K+", 30000],
+] as const;
+interface Props { lead: MovementState; onLogged?: () => void; }
 export function CallEngine({ lead, onLogged }: Props) {
   const mv = useMovement();
   const engine = useCallEngine();
-
   const suggestion = useMemo(() => suggestAgenda(lead), [lead]);
   const [agenda, setAgenda] = useState<AgendaKey>(suggestion.agenda);
   const [agendaTouched, setAgendaTouched] = useState(false);
@@ -57,28 +69,30 @@ export function CallEngine({ lead, onLogged }: Props) {
   const [outputs, setOutputs] = useState<CallOutputs | null>(null);
   const [nowText, setNowText] = useState("");
   const [followText, setFollowText] = useState("");
-
   const facts = useMemo(() => knownFacts(lead), [lead]);
   const def = agendaDef(agenda);
   const attempt = engine.noAnswerStreak(lead.ulid) + 1;
   const plan = useMemo(() => noAnswerPlan(lead, attempt), [lead, attempt]);
   const nextPlan = useMemo(() => noAnswerPlan(lead, attempt + 1), [lead, attempt]);
+  const deadlineLate = Boolean(
+    lead.nextAction?.dueAt && new Date(lead.nextAction.dueAt).getTime() < Date.now(),
+  );
   const mission = useMemo(() => callMission(lead, agenda, cap), [lead, agenda, cap]);
   const media = useMemo(() => rankedForCustomer(lead, []).slice(0, 3), [lead]);
-
   const set = (p: Partial<CallCapture>) => setCap((c) => ({ ...c, ...p }));
   const toggle = (key: "activities" | "promises" | "matters", value: string) =>
     setCap((c) => {
       const list = c[key] ?? [];
-      return { ...c, [key]: list.includes(value) ? list.filter((v) => v !== value) : [...list, value] };
+      return {
+        ...c,
+        [key]: list.includes(value) ? list.filter((v) => v !== value) : [...list, value],
+      };
     });
-
   function startCall() {
     mv.startCall(lead.ulid);
     setStartedAt(Date.now());
     setPhase("capture");
   }
-
   function finish(kind: OutcomeKind) {
     setOutcome(kind);
     const out = buildOutputs(
@@ -94,13 +108,19 @@ export function CallEngine({ lead, onLogged }: Props) {
     setFollowText(out.followUp.text);
     setPhase("outputs");
   }
-
   function commit() {
     if (!outputs) return;
     const durationSec = startedAt ? Math.round((Date.now() - startedAt) / 1000) : undefined;
     const waste = wasteFlags(lead, cap, outputs.movement);
-
-    mv.logCall(lead.ulid, outcome === "connected" ? "connected" : outcome === "not-relevant" ? "wrong-number" : "no-answer", def.label);
+    mv.logCall(
+      lead.ulid,
+      outcome === "connected"
+        ? "connected"
+        : outcome === "not-relevant"
+          ? "wrong-number"
+          : "no-answer",
+      def.label,
+    );
     mv.capture(lead.ulid, {
       moveInDate: cap.moveIn ?? undefined,
       location: cap.area ?? undefined,
@@ -127,8 +147,11 @@ export function CallEngine({ lead, onLogged }: Props) {
       ownerName: mv.actor.name,
       note: outputs.nextStep.label,
     });
-    mv.log(lead.ulid, "note", `${def.label} · ${MOVEMENT_LABEL[outputs.movement]}${cap.note ? ` — ${cap.note}` : ""}`);
-
+    mv.log(
+      lead.ulid,
+      "note",
+      `${def.label} · ${MOVEMENT_LABEL[outputs.movement]}${cap.note ? ` — ${cap.note}` : ""}`,
+    );
     const record = {
       id: `call-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       ts: new Date().toISOString(),
@@ -151,25 +174,23 @@ export function CallEngine({ lead, onLogged }: Props) {
       stageAfter: lead.stage,
       waste,
     } as CallRecord;
-
     engine.save(record);
     void pushCallRecord(record).then((res) => {
       if (!res.ok) toast.warning(`Saved on this device — not synced yet: ${res.error}`);
     });
-
-    toast.success(`${def.label} logged · ${MOVEMENT_LABEL[outputs.movement]} · next: ${outputs.nextStep.label}`);
+    toast.success(
+      `${def.label} logged · ${MOVEMENT_LABEL[outputs.movement]} · next: ${outputs.nextStep.label}`,
+    );
     setPhase("mission");
     setCap(emptyCapture());
     setOutputs(null);
     setStartedAt(null);
     onLogged?.();
   }
-
   async function copy(text: string) {
     await navigator.clipboard.writeText(text);
     toast.success("Copied — paste into WhatsApp");
   }
-
   return (
     <div className="space-y-3 rounded-lg border p-3">
       {/* Fixed header — the lead's details stay visible for the whole call, never scroll away. */}
@@ -179,33 +200,51 @@ export function CallEngine({ lead, onLogged }: Props) {
             <div className="truncate text-sm font-semibold">{lead.name ?? "Customer"}</div>
             <div className="text-[10px] text-muted-foreground">M-POWER CALL · {def.label}</div>
           </div>
-          {lead.nextAction && (
-            <Badge variant="outline" className="shrink-0 text-[10px]">
-              next: {NEXT_ACTION_LABEL[lead.nextAction.kind]} ·{" "}
-              {new Date(lead.nextAction.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          <div className="flex shrink-0 items-center gap-1">
+            <Badge variant={deadlineLate ? "destructive" : "outline"} className="text-[10px]">
+              {lead.nextAction
+                ? `next: ${NEXT_ACTION_LABEL[lead.nextAction.kind]} · ${new Date(lead.nextAction.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                : "no deadline"}
             </Badge>
-          )}
+            {deadlineLate && (
+              <Badge variant="destructive" className="text-[10px]">
+                overdue
+              </Badge>
+            )}
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
           {facts.map((f) => (
             <div key={f.label} className="flex justify-between gap-2 text-[11px]">
               <span className="text-muted-foreground">{f.label}</span>
-              <span className={cn("truncate font-medium", !f.known && "text-muted-foreground/60")}>{f.value}</span>
+              <span className={cn("truncate font-medium", !f.known && "text-muted-foreground/60")}>
+                {f.value}
+              </span>
             </div>
           ))}
         </div>
       </div>
 
-
       {/* Agenda */}
       <div className="space-y-1.5">
         <div className="flex items-center gap-2">
           <Title>Why are we calling</Title>
-          {!agendaTouched && <Badge variant="secondary" className="text-[9px]">system: {suggestion.why}</Badge>}
+          {!agendaTouched && (
+            <Badge variant="secondary" className="text-[9px]">
+              system: {suggestion.why}
+            </Badge>
+          )}
         </div>
         <div className="flex flex-wrap gap-1">
           {AGENDAS.map((a) => (
-            <Chip key={a.key} on={agenda === a.key} onClick={() => { setAgenda(a.key); setAgendaTouched(true); }}>
+            <Chip
+              key={a.key}
+              on={agenda === a.key}
+              onClick={() => {
+                setAgenda(a.key);
+                setAgendaTouched(true);
+              }}
+            >
               {a.label}
             </Chip>
           ))}
@@ -220,11 +259,16 @@ export function CallEngine({ lead, onLogged }: Props) {
             <div className="text-xs font-semibold">{mission.headline}</div>
             <div className="text-[11px] text-muted-foreground">{mission.situation}</div>
           </div>
-          <Badge variant="secondary" className="shrink-0 text-[9px]">{mission.scenario.split("-")[0]} · {mission.progress}%</Badge>
+          <Badge variant="secondary" className="shrink-0 text-[9px]">
+            {mission.scenario.split("-")[0]} · {mission.progress}%
+          </Badge>
         </div>
 
         <div className="h-1 w-full overflow-hidden rounded bg-border">
-          <div className="h-full bg-primary transition-all" style={{ width: `${mission.progress}%` }} />
+          <div
+            className="h-full bg-primary transition-all"
+            style={{ width: `${mission.progress}%` }}
+          />
         </div>
 
         <div className="rounded border bg-background p-2 text-[11px]">
@@ -237,7 +281,9 @@ export function CallEngine({ lead, onLogged }: Props) {
             <Title>Do</Title>
             <ul className="mt-1 space-y-0.5">
               {mission.dos.map((d) => (
-                <li key={d} className="text-[11px] leading-snug">✓ {d}</li>
+                <li key={d} className="text-[11px] leading-snug">
+                  ✓ {d}
+                </li>
               ))}
             </ul>
           </div>
@@ -245,7 +291,9 @@ export function CallEngine({ lead, onLogged }: Props) {
             <Title>Don't</Title>
             <ul className="mt-1 space-y-0.5">
               {mission.donts.map((d) => (
-                <li key={d} className="text-[11px] leading-snug text-muted-foreground">✕ {d}</li>
+                <li key={d} className="text-[11px] leading-snug text-muted-foreground">
+                  ✕ {d}
+                </li>
               ))}
             </ul>
           </div>
@@ -271,11 +319,12 @@ export function CallEngine({ lead, onLogged }: Props) {
           <span className="font-semibold">{mission.ctaLabel}</span>
           <div className="text-[10px] text-muted-foreground">{mission.ctaHow}</div>
         </div>
-
       </div>
 
       {phase === "mission" && (
-        <Button className="w-full" onClick={startCall}>Call {lead.name ?? "customer"}</Button>
+        <Button className="w-full" onClick={startCall}>
+          Call {lead.name ?? "customer"}
+        </Button>
       )}
 
       {phase === "capture" && (
@@ -283,7 +332,9 @@ export function CallEngine({ lead, onLogged }: Props) {
           <Separator />
           <div className="flex flex-wrap gap-1.5">
             {OUTCOMES.map((o) => (
-              <Chip key={o.key} on={outcome === o.key} onClick={() => setOutcome(o.key)}>{o.label}</Chip>
+              <Chip key={o.key} on={outcome === o.key} onClick={() => setOutcome(o.key)}>
+                {o.label}
+              </Chip>
             ))}
           </div>
 
@@ -295,33 +346,61 @@ export function CallEngine({ lead, onLogged }: Props) {
                   <div>
                     <Title>Move-in</Title>
                     <div className="mt-1 flex flex-wrap gap-1">
-                      {[["Today", 0], ["1–3 Days", 2], ["4–7 Days", 6], ["8–15 Days", 12], ["15+ Days", 20]].map(([label, d]) => (
+                      {([
+                        ["Today", 0],
+                        ["1–3 Days", 2],
+                        ["4–7 Days", 6],
+                        ["8–15 Days", 12],
+                        ["15+ Days", 20],
+                      ] as const).map(([label, d]) => (
                         <Chip
-                          key={label as string}
-                          on={cap.moveIn === isoInDays(d as number)}
-                          onClick={() => set({ moveIn: isoInDays(d as number) })}
+                          key={label}
+                          on={cap.moveIn === isoInDays(d)}
+                          onClick={() => set({ moveIn: isoInDays(d) })}
                         >
-                          {label as string}
+                          {label}
                         </Chip>
                       ))}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <Input className="h-8 text-xs" placeholder="Area" value={cap.area ?? ""} onChange={(e) => set({ area: e.target.value })} />
-                    <Input className="h-8 text-xs" placeholder="Office / College" value={cap.officeOrCollege ?? ""} onChange={(e) => set({ officeOrCollege: e.target.value })} />
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="Area"
+                      value={cap.area ?? ""}
+                      onChange={(e) => set({ area: e.target.value })}
+                    />
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="Office / College"
+                      value={cap.officeOrCollege ?? ""}
+                      onChange={(e) => set({ officeOrCollege: e.target.value })}
+                    />
                   </div>
                   <div>
                     <Title>Currently</Title>
                     <div className="mt-1 flex flex-wrap gap-1">
-                      <Chip on={cap.inBangalore === true} onClick={() => set({ inBangalore: true })}>Already in Bangalore</Chip>
-                      <Chip on={cap.inBangalore === false} onClick={() => set({ inBangalore: false })}>Coming to Bangalore</Chip>
+                      <Chip
+                        on={cap.inBangalore === true}
+                        onClick={() => set({ inBangalore: true })}
+                      >
+                        Already in Bangalore
+                      </Chip>
+                      <Chip
+                        on={cap.inBangalore === false}
+                        onClick={() => set({ inBangalore: false })}
+                      >
+                        Coming to Bangalore
+                      </Chip>
                     </div>
                   </div>
                   <div>
                     <Title>Budget</Title>
                     <div className="mt-1 flex flex-wrap gap-1">
-                      {[["<10K", 9000], ["10–15K", 15000], ["15–20K", 20000], ["20–25K", 25000], ["25K+", 30000]].map(([label, v]) => (
-                        <Chip key={label as string} on={cap.budget === v} onClick={() => set({ budget: v as number })}>{label as string}</Chip>
+                      {BUDGET_OPTIONS.map(([label, v]) => (
+                        <Chip key={label} on={cap.budget === v} onClick={() => set({ budget: v })}>
+                          {label}
+                        </Chip>
                       ))}
                     </div>
                   </div>
@@ -329,7 +408,9 @@ export function CallEngine({ lead, onLogged }: Props) {
                     <Title>Room</Title>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {["Private", "2 Sharing", "3 Sharing", "Flexible"].map((r) => (
-                        <Chip key={r} on={cap.roomType === r} onClick={() => set({ roomType: r })}>{r}</Chip>
+                        <Chip key={r} on={cap.roomType === r} onClick={() => set({ roomType: r })}>
+                          {r}
+                        </Chip>
                       ))}
                     </div>
                   </div>
@@ -337,24 +418,48 @@ export function CallEngine({ lead, onLogged }: Props) {
                     <Title>For whom</Title>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {(["Self", "Friend", "Family"] as const).map((r) => (
-                        <Chip key={r} on={cap.forWhom === r} onClick={() => set({ forWhom: r })}>{r}</Chip>
+                        <Chip key={r} on={cap.forWhom === r} onClick={() => set({ forWhom: r })}>
+                          {r}
+                        </Chip>
                       ))}
                     </div>
                   </div>
                   <div>
                     <Title>What matters most</Title>
                     <div className="mt-1 flex flex-wrap gap-1">
-                      {["Price", "Location", "Food", "Room Quality", "Privacy", "Amenities", "Near Office/College"].map((m) => (
-                        <Chip key={m} on={cap.matters?.includes(m)} onClick={() => toggle("matters", m)}>{m}</Chip>
+                      {[
+                        "Price",
+                        "Location",
+                        "Food",
+                        "Room Quality",
+                        "Privacy",
+                        "Amenities",
+                        "Near Office/College",
+                      ].map((m) => (
+                        <Chip
+                          key={m}
+                          on={cap.matters?.includes(m)}
+                          onClick={() => toggle("matters", m)}
+                        >
+                          {m}
+                        </Chip>
                       ))}
                     </div>
                   </div>
                 </>
               )}
 
-              {(agenda === "property-feedback" || agenda === "property-intro" || agenda === "alternative" || agenda === "post-tour") && (
+              {(agenda === "property-feedback" ||
+                agenda === "property-intro" ||
+                agenda === "alternative" ||
+                agenda === "post-tour") && (
                 <>
-                  <Input className="h-8 text-xs" placeholder="Property discussed" value={cap.propertyName ?? ""} onChange={(e) => set({ propertyName: e.target.value })} />
+                  <Input
+                    className="h-8 text-xs"
+                    placeholder="Property discussed"
+                    value={cap.propertyName ?? ""}
+                    onChange={(e) => set({ propertyName: e.target.value })}
+                  />
                   <div>
                     <Title>Did they see it</Title>
                     <div className="mt-1 flex flex-wrap gap-1">
@@ -369,7 +474,13 @@ export function CallEngine({ lead, onLogged }: Props) {
                     <Title>Customer reaction</Title>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {REACTIONS.map((r) => (
-                        <Chip key={r.key} on={cap.reaction === r.key} onClick={() => set({ reaction: r.key })}>{r.label}</Chip>
+                        <Chip
+                          key={r.key}
+                          on={cap.reaction === r.key}
+                          onClick={() => set({ reaction: r.key })}
+                        >
+                          {r.label}
+                        </Chip>
                       ))}
                     </div>
                   </div>
@@ -377,7 +488,13 @@ export function CallEngine({ lead, onLogged }: Props) {
                     <Title>If not liked — why</Title>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {DISLIKE_REASONS.map((r) => (
-                        <Chip key={r} on={cap.dislikeReason === r} onClick={() => set({ dislikeReason: r })}>{r}</Chip>
+                        <Chip
+                          key={r}
+                          on={cap.dislikeReason === r}
+                          onClick={() => set({ dislikeReason: r })}
+                        >
+                          {r}
+                        </Chip>
                       ))}
                     </div>
                   </div>
@@ -388,18 +505,86 @@ export function CallEngine({ lead, onLogged }: Props) {
                 <div className="space-y-2 rounded-md border p-2">
                   <Title>Price discussed</Title>
                   <div className="grid grid-cols-2 gap-2">
-                    <Input className="h-8 text-xs" placeholder="Property" value={cap.price?.propertyName ?? ""} onChange={(e) => set({ price: { ...blankPrice(cap), propertyName: e.target.value } })} />
-                    <Input className="h-8 text-xs" placeholder="Room type" value={cap.price?.roomType ?? ""} onChange={(e) => set({ price: { ...blankPrice(cap), roomType: e.target.value } })} />
-                    <Input className="h-8 text-xs" placeholder="Listed rent" inputMode="numeric" value={cap.price?.listed ?? ""} onChange={(e) => set({ price: { ...blankPrice(cap), listed: Number(e.target.value) || null } })} />
-                    <Input className="h-8 text-xs" placeholder="Price quoted" inputMode="numeric" value={cap.price?.quoted || ""} onChange={(e) => set({ price: { ...blankPrice(cap), quoted: Number(e.target.value) || 0 } })} />
-                    <Input className="h-8 text-xs" placeholder="Deposit" inputMode="numeric" value={cap.price?.deposit ?? ""} onChange={(e) => set({ price: { ...blankPrice(cap), deposit: Number(e.target.value) || null } })} />
-                    <Input className="h-8 text-xs" placeholder="Maintenance" inputMode="numeric" value={cap.price?.maintenance ?? ""} onChange={(e) => set({ price: { ...blankPrice(cap), maintenance: Number(e.target.value) || null } })} />
-                    <Input className="col-span-2 h-8 text-xs" placeholder="Valid till (e.g. 8 PM today)" value={cap.price?.validity ?? ""} onChange={(e) => set({ price: { ...blankPrice(cap), validity: e.target.value } })} />
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="Property"
+                      value={cap.price?.propertyName ?? ""}
+                      onChange={(e) =>
+                        set({ price: { ...blankPrice(cap), propertyName: e.target.value } })
+                      }
+                    />
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="Room type"
+                      value={cap.price?.roomType ?? ""}
+                      onChange={(e) =>
+                        set({ price: { ...blankPrice(cap), roomType: e.target.value } })
+                      }
+                    />
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="Listed rent"
+                      inputMode="numeric"
+                      value={cap.price?.listed ?? ""}
+                      onChange={(e) =>
+                        set({
+                          price: { ...blankPrice(cap), listed: Number(e.target.value) || null },
+                        })
+                      }
+                    />
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="Price quoted"
+                      inputMode="numeric"
+                      value={cap.price?.quoted || ""}
+                      onChange={(e) =>
+                        set({ price: { ...blankPrice(cap), quoted: Number(e.target.value) || 0 } })
+                      }
+                    />
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="Deposit"
+                      inputMode="numeric"
+                      value={cap.price?.deposit ?? ""}
+                      onChange={(e) =>
+                        set({
+                          price: { ...blankPrice(cap), deposit: Number(e.target.value) || null },
+                        })
+                      }
+                    />
+                    <Input
+                      className="h-8 text-xs"
+                      placeholder="Maintenance"
+                      inputMode="numeric"
+                      value={cap.price?.maintenance ?? ""}
+                      onChange={(e) =>
+                        set({
+                          price: {
+                            ...blankPrice(cap),
+                            maintenance: Number(e.target.value) || null,
+                          },
+                        })
+                      }
+                    />
+                    <Input
+                      className="col-span-2 h-8 text-xs"
+                      placeholder="Valid till (e.g. 8 PM today)"
+                      value={cap.price?.validity ?? ""}
+                      onChange={(e) =>
+                        set({ price: { ...blankPrice(cap), validity: e.target.value } })
+                      }
+                    />
                   </div>
                   <Title>Reaction to price</Title>
                   <div className="flex flex-wrap gap-1">
                     {PRICE_REACTIONS.map((r) => (
-                      <Chip key={r.key} on={cap.priceReaction === r.key} onClick={() => set({ priceReaction: r.key })}>{r.label}</Chip>
+                      <Chip
+                        key={r.key}
+                        on={cap.priceReaction === r.key}
+                        onClick={() => set({ priceReaction: r.key })}
+                      >
+                        {r.label}
+                      </Chip>
                     ))}
                   </div>
                 </div>
@@ -407,17 +592,32 @@ export function CallEngine({ lead, onLogged }: Props) {
 
               {(agenda === "tour-schedule" || agenda === "tour-confirm") && (
                 <div className="space-y-2">
-                  <Input className="h-8 text-xs" placeholder="Property" value={cap.propertyName ?? ""} onChange={(e) => set({ propertyName: e.target.value })} />
+                  <Input
+                    className="h-8 text-xs"
+                    placeholder="Property"
+                    value={cap.propertyName ?? ""}
+                    onChange={(e) => set({ propertyName: e.target.value })}
+                  />
                   <Input
                     type="datetime-local"
                     className="h-8 text-xs"
                     value={cap.tourAt ? cap.tourAt.slice(0, 16) : ""}
-                    onChange={(e) => set({ tourAt: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                    onChange={(e) =>
+                      set({
+                        tourAt: e.target.value ? new Date(e.target.value).toISOString() : null,
+                      })
+                    }
                   />
                   <Title>If refused — why</Title>
                   <div className="flex flex-wrap gap-1">
                     {TOUR_REFUSALS.map((r) => (
-                      <Chip key={r} on={cap.tourRefusal === r} onClick={() => set({ tourRefusal: r })}>{r}</Chip>
+                      <Chip
+                        key={r}
+                        on={cap.tourRefusal === r}
+                        onClick={() => set({ tourRefusal: r })}
+                      >
+                        {r}
+                      </Chip>
                     ))}
                   </div>
                 </div>
@@ -427,7 +627,13 @@ export function CallEngine({ lead, onLogged }: Props) {
                 <Title>What happened in this call</Title>
                 <div className="mt-1 flex flex-wrap gap-1">
                   {ACTIVITIES.map((a) => (
-                    <Chip key={a} on={cap.activities.includes(a)} onClick={() => toggle("activities", a)}>{a}</Chip>
+                    <Chip
+                      key={a}
+                      on={cap.activities.includes(a)}
+                      onClick={() => toggle("activities", a)}
+                    >
+                      {a}
+                    </Chip>
                   ))}
                 </div>
               </div>
@@ -436,20 +642,36 @@ export function CallEngine({ lead, onLogged }: Props) {
                 <Title>What did you promise</Title>
                 <div className="mt-1 flex flex-wrap gap-1">
                   {PROMISES.map((p) => (
-                    <Chip key={p} on={cap.promises.includes(p)} onClick={() => toggle("promises", p)}>{p}</Chip>
+                    <Chip
+                      key={p}
+                      on={cap.promises.includes(p)}
+                      onClick={() => toggle("promises", p)}
+                    >
+                      {p}
+                    </Chip>
                   ))}
                 </div>
               </div>
             </div>
           ) : (
             <div className="space-y-2 rounded-md border bg-muted/40 p-2.5">
-              <div className="text-xs font-semibold">{plan.title} · attempt #{plan.attempt}</div>
-              <div className="text-[11px] text-muted-foreground">Condition {plan.condition} — approved message, sent exactly as written.</div>
-              <div className="rounded border bg-background p-2 text-[11px] whitespace-pre-wrap">{plan.ask}</div>
-              <div className="text-[10px] text-muted-foreground">Next attempt if still silent: {nextPlan.ask}</div>
+              <div className="text-xs font-semibold">
+                {plan.title} · attempt #{plan.attempt}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Condition {plan.condition} — approved message, sent exactly as written.
+              </div>
+              <div className="rounded border bg-background p-2 text-[11px] whitespace-pre-wrap">
+                {plan.ask}
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                Next attempt if still silent: {nextPlan.ask}
+              </div>
               <div className="flex flex-wrap gap-1">
                 {plan.options.map((o) => (
-                  <Badge key={o} variant="outline" className="text-[10px]">{o}</Badge>
+                  <Badge key={o} variant="outline" className="text-[10px]">
+                    {o}
+                  </Badge>
                 ))}
               </div>
             </div>
@@ -459,61 +681,115 @@ export function CallEngine({ lead, onLogged }: Props) {
             <Title>Media to attach — matched on area, budget, room and availability</Title>
             <div className="mt-1 flex flex-wrap gap-1">
               {media.map((m, i) => (
-                <Chip key={m.id} on={(cap.mediaCount ?? 0) > i} onClick={() => set({ mediaCount: (cap.mediaCount ?? 0) > i ? i : i + 1 })}>
+                <Chip
+                  key={m.id}
+                  on={(cap.mediaCount ?? 0) > i}
+                  onClick={() => set({ mediaCount: (cap.mediaCount ?? 0) > i ? i : i + 1 })}
+                >
                   {m.name} · {m.area} · ₹{m.fromPrice.toLocaleString("en-IN")}
                 </Chip>
               ))}
             </div>
           </div>
 
-          <Textarea rows={2} className="text-xs" placeholder="Anything the customer said that the fields don't cover" value={cap.note ?? ""} onChange={(e) => set({ note: e.target.value })} />
-          <Button className="w-full" onClick={() => finish(outcome)}>End call · build message, follow-up and next step</Button>
+          <Textarea
+            rows={2}
+            className="text-xs"
+            placeholder="Anything the customer said that the fields don't cover"
+            value={cap.note ?? ""}
+            onChange={(e) => set({ note: e.target.value })}
+          />
+          <Button className="w-full" onClick={() => finish(outcome)}>
+            End call · build message, follow-up and next step
+          </Button>
         </>
       )}
 
       {phase === "outputs" && outputs && (
         <>
           <Separator />
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge className="text-[10px]">{MOVEMENT_LABEL[outputs.movement]}</Badge>
-            <span className="text-[11px] text-muted-foreground">{def.label} · {outcome}</span>
+            <span className="text-[11px] text-muted-foreground">
+              {def.label} · {outcome}
+            </span>
+            <Badge variant="outline" className="text-[10px]">
+              Outcome: {outcome}
+            </Badge>
           </div>
 
           <div className="space-y-1.5">
             <Title>1 · Send now</Title>
-            {outputs.mediaHint && <div className="text-[10px] text-muted-foreground">{outputs.mediaHint}</div>}
-            <Textarea rows={8} className="text-xs" value={nowText} onChange={(e) => setNowText(e.target.value)} />
+            {outputs.mediaHint && (
+              <div className="text-[10px] text-muted-foreground">{outputs.mediaHint}</div>
+            )}
+            <Textarea
+              rows={8}
+              className="text-xs"
+              value={nowText}
+              onChange={(e) => setNowText(e.target.value)}
+            />
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" className="flex-1" onClick={() => copy(nowText)}>Copy for WhatsApp</Button>
+              <Button size="sm" variant="outline" className="flex-1" onClick={() => copy(nowText)}>
+                Copy for WhatsApp
+              </Button>
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Title>2 · Follow-up · {new Date(outputs.followUp.dueAt).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</Title>
-            <div className="text-[10px] text-muted-foreground">{outputs.followUp.trigger} — it cancels itself if the customer moves.</div>
-            <Textarea rows={4} className="text-xs" value={followText} onChange={(e) => setFollowText(e.target.value)} />
+            <Title>
+              2 · Follow-up ·{" "}
+              {new Date(outputs.followUp.dueAt).toLocaleString([], {
+                day: "numeric",
+                month: "short",
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </Title>
+            <div className="text-[10px] text-muted-foreground">
+              {outputs.followUp.trigger} — it cancels itself if the customer moves.
+            </div>
+            <Textarea
+              rows={4}
+              className="text-xs"
+              value={followText}
+              onChange={(e) => setFollowText(e.target.value)}
+            />
           </div>
 
           <div className="rounded-md border p-2">
             <Title>3 · Next step</Title>
             <div className="text-xs font-medium">{outputs.nextStep.label}</div>
             <div className="text-[11px] text-muted-foreground">
-              Due {new Date(outputs.nextStep.dueAt).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} · Owner {mv.actor.name}
+              Due{" "}
+              {new Date(outputs.nextStep.dueAt).toLocaleString([], {
+                day: "numeric",
+                month: "short",
+                hour: "numeric",
+                minute: "2-digit",
+              })}{" "}
+              · Owner {mv.actor.name}
+            </div>
+            <div className="mt-1 text-[10px] text-muted-foreground">
+              Captured work: {cap.activities.length} activities · {cap.promises.length} promises ·{" "}
+              {cap.note || "no note"}
             </div>
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setPhase("capture")}>Back</Button>
-            <Button className="flex-1" size="sm" onClick={commit}>Send, arm follow-up and set next step</Button>
+            <Button variant="outline" size="sm" onClick={() => setPhase("capture")}>
+              Back
+            </Button>
+            <Button className="flex-1" size="sm" onClick={commit}>
+              Send, arm follow-up and set next step
+            </Button>
           </div>
         </>
       )}
     </div>
   );
 }
-
 const isoInDays = (d: number) => new Date(Date.now() + d * 86400000).toISOString();
-
 /** Every call is a re-verification call: the details stay on screen, tick to confirm or type to correct. */
 function VerifyPanel({
   lead,
@@ -522,53 +798,66 @@ function VerifyPanel({
 }: {
   lead: MovementState;
   cap: CallCapture;
-  set: (p: Partial<CallCapture>) => void;
+  set: (patch: Partial<CallCapture>) => void;
 }) {
   const q = lead.q ?? {};
   const verified = cap.verified ?? [];
   const tick = (label: string) =>
-    set({ verified: verified.includes(label) ? verified.filter((v) => v !== label) : [...verified, label] });
-
-  const rows: {
-    label: string;
-    crm: string;
-    live: string;
-    onChange: (v: string) => void;
-  }[] = [
+    set({
+      verified: verified.includes(label)
+        ? verified.filter((v) => v !== label)
+        : [...verified, label],
+    });
+  const rows = [
     {
       label: "Move-in",
       crm: fmtDate(q.moveInDate ?? lead.checkInDate),
       live: cap.moveIn ? fmtDate(cap.moveIn) : "",
-      onChange: (v) => set({ moveIn: v ? new Date(v).toISOString() : null }),
+      onChange: (v: string) => set({ moveIn: v ? new Date(v).toISOString() : null }),
     },
-    { label: "Area", crm: q.location ?? "", live: cap.area ?? "", onChange: (v) => set({ area: v }) },
+    {
+      label: "Area",
+      crm: q.location ?? "",
+      live: cap.area ?? "",
+      onChange: (v: string) => set({ area: v }),
+    },
     {
       label: "Office / College",
       crm: q.officeOrCollege ?? "",
       live: cap.officeOrCollege ?? "",
-      onChange: (v) => set({ officeOrCollege: v }),
+      onChange: (v: string) => set({ officeOrCollege: v }),
     },
     {
       label: "Budget",
       crm: q.budget ? String(q.budget) : "",
       live: cap.budget ? String(cap.budget) : "",
-      onChange: (v) => set({ budget: Number(v) || null }),
+      onChange: (v: string) => set({ budget: Number(v) || null }),
     },
-    { label: "Room", crm: q.roomType ?? "", live: cap.roomType ?? "", onChange: (v) => set({ roomType: v }) },
+    {
+      label: "Room",
+      crm: q.roomType ?? "",
+      live: cap.roomType ?? "",
+      onChange: (v: string) => set({ roomType: v }),
+    },
     {
       label: "In Bangalore",
-      crm: q.inBangalore === null || q.inBangalore === undefined ? "" : q.inBangalore ? "Yes" : "No",
-      live: cap.inBangalore === null || cap.inBangalore === undefined ? "" : cap.inBangalore ? "Yes" : "No",
-      onChange: (v) => set({ inBangalore: /^y/i.test(v) ? true : /^n/i.test(v) ? false : null }),
+      crm:
+        q.inBangalore === null || q.inBangalore === undefined ? "" : q.inBangalore ? "Yes" : "No",
+      live:
+        cap.inBangalore === null || cap.inBangalore === undefined
+          ? ""
+          : cap.inBangalore
+            ? "Yes"
+            : "No",
+      onChange: (v: string) => set({ inBangalore: /^y/i.test(v) ? true : /^n/i.test(v) ? false : null }),
     },
     {
       label: "For whom",
       crm: q.forSelf === null || q.forSelf === undefined ? "" : q.forSelf ? "Self" : "Someone else",
       live: cap.forWhom ?? "",
-      onChange: (v) => set({ forWhom: (v as CallCapture["forWhom"]) || null }),
+      onChange: (v: string) => set({ forWhom: (v || null) as CallCapture["forWhom"] }),
     },
   ];
-
   return (
     <div className="space-y-2 rounded-md border bg-muted/30 p-2.5">
       <div className="flex items-center justify-between">
@@ -596,7 +885,9 @@ function VerifyPanel({
                 title="Confirmed by the customer"
                 className={cn(
                   "h-7 w-7 shrink-0 rounded border text-xs",
-                  ok ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted",
+                  ok
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground hover:bg-muted",
                 )}
               >
                 ✓
@@ -608,9 +899,18 @@ function VerifyPanel({
     </div>
   );
 }
-
-const fmtDate = (iso?: string | null) => (iso ? new Date(iso).toISOString().slice(0, 10) : "");
-
+const fmtDate = (iso: string | number | Date | null | undefined) =>
+  iso ? new Date(iso).toISOString().slice(0, 10) : "";
 function blankPrice(c: CallCapture) {
-  return c.price ?? { propertyName: "", roomType: "", listed: null, quoted: 0, deposit: null, maintenance: null, validity: "" };
+  return (
+    c.price ?? {
+      propertyName: "",
+      roomType: "",
+      listed: null,
+      quoted: 0,
+      deposit: null,
+      maintenance: null,
+      validity: "",
+    }
+  );
 }

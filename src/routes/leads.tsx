@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { useApp } from "@/lib/store";
 import { ConfidenceBar, IntentChip, StageBadge } from "@/components/atoms";
@@ -40,6 +40,7 @@ export const Route = createFileRoute("/leads")({
 
 function LeadsPage() {
   const { leads, tcms, selectLead } = useApp();
+  const location = useLocation();
   const [, mounted] = useMountedNow();
   const [q, setQ] = useState("");
   const [stage, setStage] = useState<string>("all");
@@ -89,7 +90,7 @@ function LeadsPage() {
 
   return (
     <AppShell>
-      <div className="space-y-4">
+      <div className={location.pathname === "/leads" ? "space-y-4" : "hidden"}>
         <header className="flex items-end justify-between flex-wrap gap-3">
           <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight">Leads</h1>
@@ -291,6 +292,7 @@ function LeadsPage() {
         {view === "board" && <LeadStageBoard leads={filtered} onOpen={selectLead} />}
         {view === "buckets" && <LeadMoveInBuckets leads={filtered} onOpen={selectLead} />}
       </div>
+      <Outlet />
     </AppShell>
   );
 }
