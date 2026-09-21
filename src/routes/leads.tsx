@@ -213,11 +213,6 @@ function LeadsPage() {
                     role="button"
                     tabIndex={0}
                     data-testid={`lead-row-${l.id}`}
-                    onPointerDownCapture={(e) => {
-                      const target = e.target as HTMLElement;
-                      if (target.closest('[data-copy-phone="true"]')) return;
-                      selectLead(l.id);
-                    }}
                     onClick={() => selectLead(l.id)}
                     onKeyDown={(e) => {
                       if (e.key !== "Enter" && e.key !== " ") return;
