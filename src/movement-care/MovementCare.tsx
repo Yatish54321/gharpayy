@@ -551,8 +551,8 @@ export function MovementCare() {
           onStart={startDay}
         />
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[320px_minmax(420px,1fr)_330px]">
-          <section className="flex min-h-0 flex-col overflow-hidden border-r bg-card">
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:overflow-hidden lg:grid-cols-[320px_minmax(420px,1fr)_330px]">
+          <section className="flex min-h-[220px] flex-col overflow-hidden border-r bg-card lg:min-h-0">
             <div className="border-b px-3 py-2">
               <div className="flex items-center justify-between gap-2">
                 <div>
@@ -661,7 +661,7 @@ export function MovementCare() {
             </div>
           </section>
 
-          <main className="min-h-0 overflow-y-auto p-2">
+          <main className="min-h-[420px] overflow-y-auto p-2 lg:min-h-0">
             {selectedState && selectedResult ? (
               <div className="space-y-2">
                 <div className="border bg-card p-3">
@@ -839,7 +839,7 @@ export function MovementCare() {
             )}
           </main>
 
-          <aside className="min-h-0 overflow-y-auto border-l bg-card p-2">
+          <aside className="min-h-[260px] overflow-y-auto border-l bg-card p-2 lg:min-h-0">
             <CheckpointPanel
               role={activeRole}
               operatorId={mv.actor.id}

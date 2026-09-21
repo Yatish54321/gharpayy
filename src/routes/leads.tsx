@@ -196,7 +196,7 @@ function LeadsPage() {
 
         {view === "table" && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="grid grid-cols-12 px-4 py-2 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold border-b border-border bg-muted/40">
+          <div className="hidden grid-cols-12 px-4 py-2 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold border-b border-border bg-muted/40 sm:grid">
             <div className="col-span-3">Lead</div>
             <div className="col-span-2">Stage</div>
             <div className="col-span-2">Intent · score</div>
@@ -219,9 +219,9 @@ function LeadsPage() {
                       e.preventDefault();
                       selectLead(l.id);
                     }}
-                    className="w-full text-left grid grid-cols-12 px-4 py-3 items-center hover:bg-accent/5 transition-colors cursor-pointer"
+                    className="w-full text-left grid grid-cols-1 gap-2 px-4 py-3 items-start hover:bg-accent/5 transition-colors cursor-pointer sm:grid-cols-12 sm:items-center sm:gap-0"
                   >
-                    <div className="col-span-3">
+                    <div className="sm:col-span-3">
                       <div className="font-medium text-sm">{l.name}</div>
 
                       <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -251,22 +251,22 @@ function LeadsPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="col-span-2">
+                    <div className="sm:col-span-2">
                       <StageBadge stage={l.stage} />
                     </div>
-                    <div className="col-span-2 flex items-center gap-2">
+                    <div className="flex items-center gap-2 sm:col-span-2">
                       <IntentChip intent={l.intent} />
                       <ConfidenceBar value={l.confidence} />
                     </div>
-                    <div className="col-span-2 text-xs">
+                    <div className="text-xs sm:col-span-2">
                       <div>{l.preferredArea}</div>
                       <div className="text-muted-foreground">₹{(l.budget / 1000).toFixed(0)}k</div>
                     </div>
-                    <div className="col-span-2 text-xs">
+                    <div className="text-xs sm:col-span-2">
                       <div>{tcm?.name ?? "—"}</div>
                       <div className="text-muted-foreground">{tcm?.zone ?? "—"}</div>
                     </div>
-                    <div className="col-span-1 text-right text-[11px] text-muted-foreground">
+                    <div className="text-left text-[11px] text-muted-foreground sm:col-span-1 sm:text-right">
                       {mounted
                         ? formatDistanceToNow(new Date(l.updatedAt), { addSuffix: true })
                         : "—"}

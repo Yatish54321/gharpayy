@@ -195,13 +195,13 @@ export function CallEngine({ lead, onLogged }: Props) {
     <div className="space-y-3 rounded-lg border p-3">
       {/* Fixed header — the lead's details stay visible for the whole call, never scroll away. */}
       <div className="sticky top-0 z-20 -mx-3 -mt-3 mb-1 space-y-1.5 border-b bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold">{lead.name ?? "Customer"}</div>
             <div className="text-[10px] text-muted-foreground">M-POWER CALL · {def.label}</div>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <Badge variant={deadlineLate ? "destructive" : "outline"} className="text-[10px]">
+          <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-1">
+            <Badge variant={deadlineLate ? "destructive" : "outline"} className="max-w-full truncate text-[10px]">
               {lead.nextAction
                 ? `next: ${NEXT_ACTION_LABEL[lead.nextAction.kind]} · ${new Date(lead.nextAction.dueAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
                 : "no deadline"}

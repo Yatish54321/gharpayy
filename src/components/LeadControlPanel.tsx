@@ -246,33 +246,33 @@ export function LeadControlPanel() {
             <ConfidenceBar value={lead.confidence} />
             <span className="text-[10px] text-muted-foreground shrink-0">confidence</span>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-xs">
+          <div className="grid grid-cols-1 gap-2 text-xs min-[380px]:grid-cols-3">
             <Meta icon={CalendarIcon} label="Move-in" value={format(new Date(lead.moveInDate), "MMM d")} />
             <Meta icon={Wallet} label="Budget" value={`₹${(lead.budget / 1000).toFixed(0)}k`} />
             <Meta icon={MapPin} label="Area" value={lead.preferredArea} />
           </div>
           <LeadCapturedStrip lead={lead} />
 
-          <div className="flex flex-wrap items-center gap-2 pt-1">
+          <div className="grid grid-cols-2 items-center gap-2 pt-1 sm:flex">
             <Button
               size="sm"
               onClick={openCallEngine}
-              className="h-9 flex-1 min-w-[170px] animate-pulse-none bg-gradient-to-r from-primary via-primary to-accent font-display text-[12px] font-bold uppercase tracking-[0.14em] text-primary-foreground shadow-lg shadow-primary/30 ring-1 ring-primary/40 transition-transform hover:scale-[1.02]"
+              className="col-span-2 h-9 w-full animate-pulse-none bg-gradient-to-r from-primary via-primary to-accent font-display text-[12px] font-bold uppercase tracking-[0.14em] text-primary-foreground shadow-lg shadow-primary/30 ring-1 ring-primary/40 transition-transform hover:scale-[1.02] sm:flex-1 sm:min-w-[170px]"
             >
               <Zap className="mr-1.5 h-4 w-4" /> M-POWER CALL
             </Button>
-            <Button size="sm" variant="secondary" className="h-8 flex-1 min-w-[140px]" onClick={() => setLogOpen(true)}>
+            <Button size="sm" variant="secondary" className="h-8 w-full sm:flex-1 sm:min-w-[140px]" onClick={() => setLogOpen(true)}>
               <ActivityIcon className="mr-1.5 h-3.5 w-3.5" /> + Log activity
             </Button>
-            <Button size="sm" variant="outline" className="h-8" asChild>
+            <Button size="sm" variant="outline" className="h-8 w-full sm:w-auto" asChild>
               <a href={`tel:${lead.phone}`}><Phone className="mr-1.5 h-3.5 w-3.5" /> Call</a>
             </Button>
-            <Button size="sm" variant="outline" className="h-8" asChild>
+            <Button size="sm" variant="outline" className="h-8 w-full sm:w-auto" asChild>
               <a href={`https://wa.me/${lead.phone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">
                 <MessageSquare className="mr-1.5 h-3.5 w-3.5" /> WhatsApp
               </a>
             </Button>
-            <Button size="sm" variant="ghost" className="h-8" onClick={() => setTab("followups")}>
+            <Button size="sm" variant="ghost" className="col-span-2 h-8 w-full sm:w-auto" onClick={() => setTab("followups")}>
               <BellRing className="mr-1.5 h-3.5 w-3.5" />
               {openFollowUps.length ? `${openFollowUps.length} follow-up${openFollowUps.length === 1 ? "" : "s"}` : "No follow-up"}
             </Button>
